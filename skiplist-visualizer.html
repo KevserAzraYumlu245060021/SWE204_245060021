@@ -142,7 +142,7 @@
 <div class="wrap">
 
   <header>
-    <h1>Skip List — Express Lane Visualizer</h1>
+    <h1>Skip List-Express Lane Visualizer</h1>
     <p class="sub">A skip list is a sorted linked list with shortcut "express lanes" stacked on top.
     Level&nbsp;1 is the local line that stops at every station; higher levels skip ahead.
     Insert values, then run a search and step through it to watch the route travel down&nbsp;and&nbsp;right.</p>
@@ -219,9 +219,7 @@
 
 
 <script>
-/* ===================================================================
-   PART 1 — THE SKIP LIST LIBRARY  (this is the data structure)
-   =================================================================== */
+/* the list, this is the data structure)*/
 
 function makeNode(key, value, level) {
   return { key: key, value: value, forward: new Array(level + 1).fill(null) };
@@ -332,9 +330,7 @@ class SkipList {
 }
 
 
-/* ===================================================================
-   PART 2 — THE VISUALIZER  (drawing + animation + controls)
-   =================================================================== */
+/* Visual stuff(drawing + animation + controls)*/
 
 const MAX_LEVEL = 6;
 let list = new SkipList(MAX_LEVEL, 0.5);
@@ -531,8 +527,8 @@ function updateStats() {
     document.getElementById("stat-exp").textContent = Ln.toFixed(1);
     document.getElementById("stat-expc").textContent = expC.toFixed(1);
   } else {
-    document.getElementById("stat-exp").textContent = "—";
-    document.getElementById("stat-expc").textContent = "—";
+    document.getElementById("stat-exp").textContent = "-";
+    document.getElementById("stat-expc").textContent = "-";
   }
 }
 
