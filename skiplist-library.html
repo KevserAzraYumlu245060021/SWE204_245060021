@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Skip List - Library Demo</title>
+<style>
+  /* jsust trying to understand paper and recreate it so I know what to go with for the real project */
+  body {
+    font-family: Arial, sans-serif;
+    margin: 30px;
+    background: #f4f4f4;
+    color: #222;
+  }
+  h1 { font-size: 20px; }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: auto;
+  }
+  button {
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Skip List — Library Demo</h1>
+<p>This page builds a skip list and prints its structure. Click the button to
+rebuild it — because the heights are random, the "towers" change every time. You can change the data from the file</p>
+
+<button onclick="runDemo()">Rebuild skip list (new random heights)</button>
+
+<pre id="output">Click the button above.</pre>
+
+
+<script>
+
+/*
+
+  Note:
+  The papers numbers levels starting at 1 (level 1 is the bottom
+  lane). but arrays start at 0. To keep code looking like the paper's figures, I made the array one slot bigger and just
+  ignore forward[0]. So a "level 3" node uses forward[1], forward[2],
+  forward[3]. Slot 0 is wasted on purpose just to keep math readable.
+*/
+function makeNode(key, value, level) {
+  return {
+    key: key,
+    value: value,
+    forward: new Array(level + 1).fill(null)
+  };
+}
+
+
+class SkipList {
+
+  constructor(maxLevel, p) {
+    // maxLevel = the tallest a tower is ever allowed to get.
+    // p = probability of "getting promoted" one more level (the coin).
+    //     p = 0.5 means a fair coin (50% chance each flip).
+    this.maxLevel = maxLevel;
+    this.p = p;
+
+    // The current tallest tower actually in the list right now.
+    // Empty list starts at level 1.
+    this.level = 1;
+
+    // The header is a special "start" node sitting at the far left. It has a forward pointer on every possible level so we alwayshave a place to begin a search. 
+    // the keyis -Infinity so it is smaller than anything we could ever insert.
+    this.header = makeNode(-Infinity, null, maxLevel);
+  }
+
+
+  /*
+    THE COIN FLIP. This is the heart of "probabilistic".
+
+    Start every node at level 1. Then keep flipping a coin: as long as
+    the coin says "heads" (Math.random() < p), promote it one more level.
+    Stop on the first "tails", or when we hit maxLevel.
+
+    So that: ~50% of nodes are level 1, ~25% are level 2, ~12.5% level 3...
+  */
+  randomLevel() {
+    let lvl = 1;
+    while (Math.random() < this.p && lvl < this.maxLevel) {
+      lvl = lvl + 1;
+    }
+    return lvl;
+  }
+
+
+  /*
+    SEARCH  (figure 2 on the paper)
+
+    The famous "down and to the right" walk:
+    - Start at the header, on the HIGHEST level.
+    - On each level, move RIGHT as far as you can without overshooting
+      the key you're looking for.
+    - When the next node would be too big, drop DOWN one level and
+      keep going right from where you are.
+    - At the bottom level you land right in front of the answer.
+
+    This is why skip lists are fast: the high levels let you jump over
+    big chunks of the list instead of checking every node.
+  */
+  search(searchKey) {
+    let x = this.header;
+
+    // go from the top level down to level 1
+    for (let i = this.level; i >= 1; i--) {
+      // move right while the next node's key is still smaller than target
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) {
+        x = x.forward[i];
+      }
+      // next node is too big (or null) -> the for-loop drops us down a level
+    }
+
+    // now x is the node just BEFORE where the key should be.
+    // step forward once on the bottom level to land on the candidate.
+    x = x.forward[1];
+
+    if (x !== null && x.key === searchKey) {
+      return x.value;   // found it
+    } else {
+      return null;      // not in the list
+    }
+  }
+
+
+  /*
+    INSERT  (Figure 4 in the paper)
+
+    Step 1: do the same down-and-right search, BUT remember the last node
+            we were at on EACH level. We store those in "update".
+            update[i] = the node whose level-i pointer we'll need to rewire.
+    Step 2: roll a random height for the new node.
+    Step 3: splice it in by fixing pointers, just like inserting into a
+            normal linked list but on every level the new node reaches.
+  */
+  insert(searchKey, value) {
+    let update = new Array(this.maxLevel + 1).fill(null);
+    let x = this.header;
+
+    // --- the search, recording our path in update[] ---
+    for (let i = this.level; i >= 1; i--) {
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) {
+        x = x.forward[i];
+      }
+      update[i] = x;   // remember where we dropped down at this level
+    }
+
+    x = x.forward[1];
+
+    // if the key already exists, just overwrite its value and stop
+    if (x !== null && x.key === searchKey) {
+      x.value = value;
+      return;
+    }
+
+    // --- pick the new node's random height ---
+    let lvl = this.randomLevel();
+
+    // if this node is taller than anything we've seen, the header itself
+    // becomes the "previous node" for those brand-new top levels
+    if (lvl > this.level) {
+      for (let i = this.level + 1; i <= lvl; i++) {
+        update[i] = this.header;
+      }
+      this.level = lvl;   // the list just got taller
+    }
+
+    //splice the new node in on every level it reaches
+    let newNode = makeNode(searchKey, value, lvl);
+    for (let i = 1; i <= lvl; i++) {
+      newNode.forward[i] = update[i].forward[i];  // new node points where prev pointed
+      update[i].forward[i] = newNode;             // prev now points at new node
+    }
+  }
+
+
+  /*
+    DELETE  (Figure 4 in the paper)
+
+    Same idea: search while recording update, then unhook the node on
+    every level it was on. And in the end if we emptied out the top levels,
+    shrink the list's level back down so we don't waste work later.
+  */
+  delete(searchKey) {
+    let update = new Array(this.maxLevel + 1).fill(null);
+    let x = this.header;
+
+    for (let i = this.level; i >= 1; i--) {
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) {
+        x = x.forward[i];
+      }
+      update[i] = x;
+    }
+
+    x = x.forward[1];
+
+    // only delete if we actually found the key
+    if (x !== null && x.key === searchKey) {
+      // unhook x level by level
+      for (let i = 1; i <= this.level; i++) {
+        // if this level's pointer doesn't point at x, x wasn't this tall,so we can stop. 
+        if (update[i].forward[i] !== x) break;
+        update[i].forward[i] = x.forward[i];
+      }
+      // if the highest levels are now empty, lower the list level
+      while (this.level > 1 && this.header.forward[this.level] === null) {
+        this.level = this.level - 1;
+      }
+    }
+  }
+}
+
+
+function printStructure(list) {
+  // every node lives on level 1, so walk level 1 to collect them in order
+  let nodes = [];
+  let n = list.header.forward[1];
+  while (n !== null) {
+    nodes.push(n);
+    n = n.forward[1];
+  }
+
+  let out = "";
+  for (let lvl = list.level; lvl >= 1; lvl--) {
+    let row = "Level " + lvl + " |";
+    for (let node of nodes) {
+      // a node's tower height = its forward array length minus the wasted slot 0
+      let height = node.forward.length - 1;
+      let label = String(node.key).padStart(2, " ");
+      if (height >= lvl) {
+        row += " " + label;   // tower reaches this level: show the key
+      } else {
+        row += "  .";          // not tall enough: show a gap
+      }
+    }
+    out += row + "\n";
+  }
+  return out;
+}
+
+
+function runDemo() {
+  // p = 0.5 (fair coin), maxLevel = 6 (so towers can't exceed 6 high)
+  let list = new SkipList(6, 0.5);
+
+  // same numbers used in the paper's Figure 1, to understand and give proof it works. but it will also work with random numbers
+  let keys = [3, 6, 7, 9, 12, 17, 19, 21, 25, 26];
+  for (let k of keys) {
+    list.insert(k, "data-for-" + k);
+  }
+
+  let text = "";
+  text += "Inserted: " + keys.join(", ") + "\n\n";
+  text += printStructure(list);
+  text += "\n";
+
+  // try a couple of searches
+  text += "search(17) -> " + list.search(17) + "\n";
+  text += "search(50) -> " + list.search(50) + "   (The number is not in the list)\n";
+
+  document.getElementById("output").textContent = text;
+}
+
+// run once on load
+runDemo();
+</script>
+
+</body>
+</html>
