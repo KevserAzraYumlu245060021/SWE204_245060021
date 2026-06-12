@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skip List — Express Lane Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --ink: #1a1f2b;
+    --muted: #6b7280;
+    --line: #e3e7ee;
+    --accent: #111827;
+    /* one colour per level = one "train line". Choosen to mimic metro line colours */
+    --l1: #334155;
+    --l2: #0e9488;
+    --l3: #e08a1e;
+    --l4: #2563eb;
+    --l5: #7c3aed;
+    --l6: #dc2626;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Inter", system-ui, sans-serif;
+    padding: 28px 22px 60px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+
+  /* header */
+  header h1 {
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: -0.5px;
+    margin: 0 0 4px;
+  }
+  header p.sub { margin: 0 0 18px; color: var(--muted); font-size: 15px; max-width: 640px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; font-size: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .dot { width: 22px; height: 5px; border-radius: 3px; display: inline-block; }
+
+  /* panels*/
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+
+  /*  controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .controls .group { display: flex; gap: 6px; align-items: center; }
+  .controls label { font-size: 13px; color: var(--muted); }
+  input[type="number"] {
+    width: 78px; padding: 9px 10px; font-family: "JetBrains Mono", monospace;
+    font-size: 14px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfe;
+  }
+  input[type="number"]:focus { outline: 2px solid #c7d2fe; border-color: #c7d2fe; }
+  select { padding: 9px 8px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfe; font-size: 13px; }
+
+  button {
+    font-family: "Inter", sans-serif; font-size: 14px; font-weight: 500;
+    padding: 9px 14px; border-radius: 9px; border: 1px solid var(--line);
+    background: #fbfcfe; color: var(--ink); cursor: pointer; transition: background .15s, transform .05s;
+  }
+  button:hover:not(:disabled) { background: #eef2ff; }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: #000; }
+  button:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+
+  .spacer { flex: 1; }
+
+  /*  the map  */
+  .stage-wrap { overflow-x: auto; }
+  svg.map { display: block; min-width: 100%; }
+
+  .lane  { stroke-width: 4; fill: none; stroke-linecap: round; transition: opacity .25s, stroke-width .15s; }
+  .tower { stroke-width: 4; fill: none; stroke-linecap: round; transition: opacity .25s, stroke-width .15s; }
+  .lvl1 { stroke: var(--l1); }
+  .lvl2 { stroke: var(--l2); }
+  .lvl3 { stroke: var(--l3); }
+  .lvl4 { stroke: var(--l4); }
+  .lvl5 { stroke: var(--l5); }
+  .lvl6 { stroke: var(--l6); }
+  .tower { stroke: #b8c0cf; }
+
+  .station { fill: #fff; stroke: #94a0b3; stroke-width: 2.5; transition: opacity .25s; }
+  .station.base { stroke: var(--ink); stroke-width: 2.5; }
+  .station.term { fill: #f1f3f8; stroke: #aab2c2; }
+  .keylabel  { font-family: "JetBrains Mono", monospace; font-size: 13px; fill: var(--ink); text-anchor: middle; }
+  .termlabel { font-family: "Space Grotesk", sans-serif; font-size: 11px; font-weight: 600; fill: var(--muted); text-anchor: middle; letter-spacing: .5px; }
+  .levlabel  { font-family: "Space Grotesk", sans-serif; font-size: 12px; font-weight: 600; fill: #9aa3b2; text-anchor: start; }
+
+  /* to make things fade when a search is running*/
+  .searching .lane:not(.lit)  { opacity: .13; }
+  .searching .tower:not(.lit) { opacity: .13; }
+  .searching .station:not(.base) { opacity: .45; }
+  .lane.lit, .tower.lit { stroke: var(--accent); stroke-width: 8; opacity: 1; }
+
+  /* the travelling token (the "you are here" train) */
+  .token { transition: transform .45s cubic-bezier(.4,0,.2,1); }
+  .token circle { fill: var(--accent); stroke: #fff; stroke-width: 3; }
+  .token.found circle { fill: #16a34a; }
+  .token.miss  circle { fill: #dc2626; }
+
+  .empty { padding: 60px 0; text-align: center; color: var(--muted); font-size: 15px; }
+
+  /* narration + step bar*/
+  .narration {
+    font-size: 16px; min-height: 24px; line-height: 1.5;
+    font-family: "Space Grotesk", sans-serif; font-weight: 500;
+  }
+  .stepbar { display: none; align-items: center; gap: 10px; margin-top: 14px; }
+  .stepbar.active { display: flex; }
+  .stepcount { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--muted); margin-left: 4px; }
+
+  /* stats */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: #f7f9fc; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
+  .stat .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stat .value { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 22px; }
+  .stat .note  { font-size: 11px; color: #9aa3b2; margin-top: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .token, .lane, .tower, .station { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Skip List — Express Lane Visualizer</h1>
+    <p class="sub">A skip list is a sorted linked list with shortcut "express lanes" stacked on top.
+    Level&nbsp;1 is the local line that stops at every station; higher levels skip ahead.
+    Insert values, then run a search and step through it to watch the route travel down&nbsp;and&nbsp;right.</p>
+
+    <div class="legend" id="legend"></div>
+  </header>
+
+  <!-- controls -->
+  <div class="panel">
+    <div class="controls">
+      <div class="group">
+        <label for="val">Value</label>
+        <input type="number" id="val" value="42">
+        <button onclick="doInsert()">Insert</button>
+        <button onclick="doDelete()">Delete</button>
+        <button class="primary" onclick="doSearch()">Search</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="group">
+        <label for="pSel">coin p</label>
+        <select id="pSel" onchange="changeP()">
+          <option value="0.5">1/2</option>
+          <option value="0.25">1/4</option>
+        </select>
+      </div>
+      <button onclick="shuffle()">Shuffle</button>
+      <button onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <!-- the map -->
+  <div class="panel">
+    <div class="stage-wrap"><div id="stage"></div></div>
+  </div>
+
+  <!-- narration + step controls -->
+  <div class="panel">
+    <div class="narration" id="narration">Insert some values, then hit Search to begin.</div>
+    <div class="stepbar" id="stepbar">
+      <button id="prevBtn" onclick="prevStep()">◀ Back</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button id="nextBtn" onclick="nextStep()">Next ▶</button>
+      <button onclick="clearSearch()">Reset</button>
+      <span class="stepcount" id="stepcount"></span>
+    </div>
+  </div>
+
+  <!-- stats -->
+  <div class="panel">
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Stations (n)</div>
+        <div class="value" id="stat-n">0</div>
+      </div>
+      <div class="stat">
+        <div class="label">Tallest tower (actual)</div>
+        <div class="value" id="stat-top">1</div>
+        <div class="note">highest level in use</div>
+      </div>
+      <div class="stat">
+        <div class="label">Expected level L(n)</div>
+        <div class="value" id="stat-exp">—</div>
+        <div class="note">log<sub>1/p</sub> n</div>
+      </div>
+      <div class="stat">
+        <div class="label">Search comparisons</div>
+        <div class="value"><span id="stat-cmp">—</span> <span style="font-size:14px;color:var(--muted)">/ ~<span id="stat-expc">—</span></span></div>
+        <div class="note">this search vs. expected</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<script>
+/* ===================================================================
+   PART 1 — THE SKIP LIST LIBRARY  (this is the data structure)
+   =================================================================== */
+
+function makeNode(key, value, level) {
+  return { key: key, value: value, forward: new Array(level + 1).fill(null) };
+}
+
+class SkipList {
+  constructor(maxLevel, p) {
+    this.maxLevel = maxLevel;
+    this.p = p;
+    this.level = 1;
+    this.header = makeNode(-Infinity, null, maxLevel);
+  }
+
+  randomLevel() {
+    let lvl = 1;
+    while (Math.random() < this.p && lvl < this.maxLevel) lvl++;
+    return lvl;
+  }
+
+  search(searchKey) {
+    let x = this.header;
+    for (let i = this.level; i >= 1; i--) {
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) x = x.forward[i];
+    }
+    x = x.forward[1];
+    return (x !== null && x.key === searchKey) ? x.value : null;
+  }
+
+  insert(searchKey, value) {
+    let update = new Array(this.maxLevel + 1).fill(null);
+    let x = this.header;
+    for (let i = this.level; i >= 1; i--) {
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) x = x.forward[i];
+      update[i] = x;
+    }
+    x = x.forward[1];
+    if (x !== null && x.key === searchKey) { x.value = value; return; }
+    let lvl = this.randomLevel();
+    if (lvl > this.level) {
+      for (let i = this.level + 1; i <= lvl; i++) update[i] = this.header;
+      this.level = lvl;
+    }
+    let n = makeNode(searchKey, value, lvl);
+    for (let i = 1; i <= lvl; i++) {
+      n.forward[i] = update[i].forward[i];
+      update[i].forward[i] = n;
+    }
+  }
+
+  delete(searchKey) {
+    let update = new Array(this.maxLevel + 1).fill(null);
+    let x = this.header;
+    for (let i = this.level; i >= 1; i--) {
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) x = x.forward[i];
+      update[i] = x;
+    }
+    x = x.forward[1];
+    if (x !== null && x.key === searchKey) {
+      for (let i = 1; i <= this.level; i++) {
+        if (update[i].forward[i] !== x) break;
+        update[i].forward[i] = x.forward[i];
+      }
+      while (this.level > 1 && this.header.forward[this.level] === null) this.level--;
+    }
+  }
+
+  /* Re-run the search, but instead of just returning an answer, push a
+     "step" for every move. Each step remembers where the token is, which
+     lanes/towers have been travelled (for the light), and a
+     running comparison count. The UI walks this list forward and back. */
+  getSearchSteps(searchKey) {
+    let steps = [], comparisons = 0;
+    let lanes = new Set(), towers = new Set();
+    let keyOf = (node) => node === this.header ? "HEAD" : node.key;
+
+    let x = this.header;
+    steps.push(snap("start", "HEAD", this.level));
+
+    for (let i = this.level; i >= 1; i--) {
+      if (i < this.level) {                 // we just dropped down a level on node x
+        towers.add(keyOf(x) + ":" + i);     // light that piece of x's tower
+        steps.push(snap("down", keyOf(x), i));
+      }
+      while (x.forward[i] !== null && x.forward[i].key < searchKey) {
+        comparisons++;
+        lanes.add(i + ":" + keyOf(x));      // light the lane we ride
+        x = x.forward[i];
+        steps.push(snap("right", keyOf(x), i));
+      }
+      comparisons++;                        // the comparison that made us stop / drop
+    }
+
+    let cand = x.forward[1];
+    if (cand !== null && cand.key === searchKey) {
+      lanes.add(1 + ":" + keyOf(x));
+      steps.push(snap("found", cand.key, 1));
+    } else {
+      steps.push(snap("notfound", keyOf(x), 1));
+    }
+    return steps;
+
+    // take a snapshot of the current state for one step
+    function snap(type, atKey, atLevel) {
+      return { type, atKey, atLevel, comparisons,
+               lanes: [...lanes], towers: [...towers] };
+    }
+  }
+}
+
+
+/* ===================================================================
+   PART 2 — THE VISUALIZER  (drawing + animation + controls)
+   =================================================================== */
+
+const MAX_LEVEL = 6;
+let list = new SkipList(MAX_LEVEL, 0.5);
+
+let trace = [], idx = 0, target = null, playTimer = null;
+let posX = {}, yOfLevel = null, tokenEl = null, svgEl = null;
+
+const LINE_COLORS = { 1:"--l1", 2:"--l2", 3:"--l3", 4:"--l4", 5:"--l5", 6:"--l6" };
+
+/* ---------- draw the whole map from the current list ---------- */
+function render() {
+  const stage = document.getElementById("stage");
+
+  // walk the bottom level to get every station, in order
+  const nodes = [];
+  let p = list.header.forward[1];
+  while (p) { nodes.push(p); p = p.forward[1]; }
+
+  const n = nodes.length, top = list.level;
+  if (n === 0) {
+    stage.innerHTML = '<div class="empty">No stations yet. Insert a value or hit Shuffle to build the map.</div>';
+    updateStats();
+    return;
+  }
+
+  // layout maths
+  const COL = 82, ROW = 58, PADL = 70, PADT = 40, PADR = 80, PADB = 56;
+  const colOf = {}; nodes.forEach((nd, j) => colOf[nd.key] = j + 1);
+  const xOf = c => PADL + c * COL;
+  const yOf = L => PADT + (top - L) * ROW;
+  const headX = xOf(0), nilX = xOf(n + 1);
+  const W = xOf(n + 1) + PADR, H = yOf(1) + PADB;
+
+  posX = { HEAD: headX, NIL: nilX };
+  nodes.forEach(nd => posX[nd.key] = xOf(colOf[nd.key]));
+  yOfLevel = yOf;
+
+  const keyOf = nd => nd === list.header ? "HEAD" : nd.key;
+
+  // --- lanes: follow each level's forward pointers.
+  let svg = "";
+  for (let i = 1; i <= top; i++) {
+    let prevKey = "HEAD", cur = list.header.forward[i];
+    while (cur) { svg += lane(i, prevKey, keyOf(cur), false); prevKey = cur.key; cur = cur.forward[i]; }
+    svg += lane(i, prevKey, "NIL", true);
+  }
+  function lane(i, a, b, term) {
+    const y = yOf(i), id = term ? `lane:${i}:${a}:nil` : `lane:${i}:${a}`;
+    return `<line id="${id}" class="lane lvl${i}" x1="${posX[a]}" y1="${y}" x2="${posX[b]}" y2="${y}"/>`;
+  }
+
+  // --- columns: a tower of stations for header, each node, and NIL
+  svg += column("HEAD", headX, top, true);
+  nodes.forEach(nd => svg += column(nd.key, posX[nd.key], nd.forward.length - 1, false));
+  svg += column("NIL", nilX, top, true);
+  function column(key, x, height, isTerm) {
+    let s = "";
+    for (let L = 1; L < height; L++)
+      s += `<line id="tower:${key}:${L}" class="tower" x1="${x}" y1="${yOf(L)}" x2="${x}" y2="${yOf(L+1)}"/>`;
+    for (let L = 1; L <= height; L++) {
+      const r = L === 1 ? 17 : 7;
+      s += `<circle class="station ${L===1?'base':''} ${isTerm?'term':''}" cx="${x}" cy="${yOf(L)}" r="${r}"/>`;
+    }
+    if (isTerm) s += `<text class="termlabel" x="${x}" y="${yOf(1)+36}">${key}</text>`;
+    else        s += `<text class="keylabel"  x="${x}" y="${yOf(1)+5}">${key}</text>`;
+    return s;
+  }
+
+  // --- level labels down the left side
+  for (let L = 1; L <= top; L++)
+    svg += `<text class="levlabel" x="18" y="${yOf(L)+4}">L${L}</text>`;
+
+  //the travelling token (hidden until a search starts)
+  svg += `<g id="token" class="token" style="opacity:0"><circle r="15"/></g>`;
+
+  stage.innerHTML = `<svg class="map" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${svg}</svg>`;
+  tokenEl = document.getElementById("token");
+  svgEl = stage.querySelector("svg");
+  updateStats();
+}
+
+/* show one step of the recorded search */
+function showStep(i) {
+  const s = trace[i];
+  svgEl.classList.add("searching");
+
+  // reset previous highlights, then light this step's route
+  svgEl.querySelectorAll(".lit").forEach(e => e.classList.remove("lit"));
+  s.lanes.forEach(k => { const e = document.getElementById("lane:" + k);  if (e) e.classList.add("lit"); });
+  s.towers.forEach(k => { const e = document.getElementById("tower:" + k); if (e) e.classList.add("lit"); });
+
+  // move the token to where we are now!
+  tokenEl.setAttribute("transform", `translate(${posX[s.atKey]},${yOfLevel(s.atLevel)})`);
+  tokenEl.style.opacity = "1";
+  tokenEl.classList.remove("found", "miss");
+  if (s.type === "found") tokenEl.classList.add("found");
+  if (s.type === "notfound") tokenEl.classList.add("miss");
+
+  // narration + counters
+  document.getElementById("narration").textContent = messageFor(s);
+  document.getElementById("stat-cmp").textContent = s.comparisons;
+  document.getElementById("stepcount").textContent = `step ${i+1} / ${trace.length}`;
+  document.getElementById("prevBtn").disabled = (i === 0);
+  document.getElementById("nextBtn").disabled = (i === trace.length - 1);
+}
+
+function messageFor(s) {
+  if (s.type === "start")    return `Start at HEAD on Level ${s.atLevel} — the highest express line. Looking for ${target}.`;
+  if (s.type === "right")    return `Level ${s.atLevel}: station ${s.atKey} is still below ${target}. Ride right →`;
+  if (s.type === "down")     return `Nothing smaller ahead on this line. Change down to Level ${s.atLevel} ↓`;
+  if (s.type === "found")    return `Arrived at ${target}. Found it in ${s.comparisons} comparisons. ✓`;
+  return `${target} is not on the map. Search ends ${s.atKey === "HEAD" ? "at the start" : "next to station " + s.atKey}.`;
+}
+
+/* buttons */ 
+function readVal() { const v = parseInt(document.getElementById("val").value, 10); return Number.isNaN(v) ? null : v; }
+
+function doInsert() { const v = readVal(); if (v === null) return; stopPlay(); list.insert(v, "v" + v); render(); clearSearch(); }
+function doDelete() { const v = readVal(); if (v === null) return; stopPlay(); list.delete(v); render(); clearSearch(); }
+
+function doSearch() {
+  const v = readVal(); if (v === null) return;
+  stopPlay();
+  if (!svgEl) render();
+  target = v;
+  trace = list.getSearchSteps(v);
+  idx = 0;
+  document.getElementById("stepbar").classList.add("active");
+  showStep(0);
+}
+
+function nextStep() { if (idx < trace.length - 1) { idx++; showStep(idx); } }
+function prevStep() { if (idx > 0) { idx--; showStep(idx); } }
+
+function togglePlay() {
+  if (playTimer) { stopPlay(); return; }
+  if (idx >= trace.length - 1) idx = -1;          // restart if at the end
+  playTimer = setInterval(() => {
+    if (idx >= trace.length - 1) { stopPlay(); return; }
+    idx++; showStep(idx);
+  }, 800);
+  document.getElementById("playBtn").textContent = "⏸ Pause";
+}
+function stopPlay() {
+  if (playTimer) clearInterval(playTimer);
+  playTimer = null;
+  const b = document.getElementById("playBtn"); if (b) b.textContent = "▶ Play";
+}
+
+function clearSearch() {
+  stopPlay();
+  trace = []; target = null;
+  document.getElementById("stepbar").classList.remove("active");
+  document.getElementById("narration").textContent = "Insert some values, then hit Search to begin.";
+  document.getElementById("stat-cmp").textContent = "—";
+  if (svgEl) {
+    svgEl.classList.remove("searching");
+    svgEl.querySelectorAll(".lit").forEach(e => e.classList.remove("lit"));
+    if (tokenEl) tokenEl.style.opacity = "0";
+  }
+}
+
+function shuffle() {
+  stopPlay();
+  list = new SkipList(MAX_LEVEL, parseFloat(document.getElementById("pSel").value));
+  const pool = [];
+  for (let i = 1; i <= 60; i++) pool.push(i);
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+  pool.slice(0, 9).forEach(k => list.insert(k, "v" + k));
+  render(); clearSearch();
+}
+
+function clearAll() {
+  stopPlay();
+  list = new SkipList(MAX_LEVEL, parseFloat(document.getElementById("pSel").value));
+  render(); clearSearch();
+}
+
+function changeP() {
+  list.p = parseFloat(document.getElementById("pSel").value);
+  updateStats();   // note: only affects nodes inserted from here on
+}
+
+/* ---------- stats: actual numbers vs. the paper's theory ---------- */
+function updateStats() {
+  const nodes = []; let p = list.header.forward[1]; while (p) { nodes.push(p); p = p.forward[1]; }
+  const n = nodes.length;
+  document.getElementById("stat-n").textContent = n;
+  document.getElementById("stat-top").textContent = list.level;
+
+  if (n > 0) {
+    const Ln = Math.log(n) / Math.log(1 / list.p);          // L(n) = log_{1/p} n
+    const expC = Ln / list.p + 1 / (1 - list.p) + 1;        // paper's expected comparison bound
+    document.getElementById("stat-exp").textContent = Ln.toFixed(1);
+    document.getElementById("stat-expc").textContent = expC.toFixed(1);
+  } else {
+    document.getElementById("stat-exp").textContent = "—";
+    document.getElementById("stat-expc").textContent = "—";
+  }
+}
+
+/* more stuff */
+function buildLegend() {
+  const names = { 1:"Level 1 — local (all stops)", 2:"Level 2", 3:"Level 3", 4:"Level 4", 5:"Level 5", 6:"Level 6" };
+  let html = "";
+  for (let i = 1; i <= MAX_LEVEL; i++)
+    html += `<span><span class="dot" style="background:var(${LINE_COLORS[i]})"></span>${names[i]}</span>`;
+  document.getElementById("legend").innerHTML = html;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!trace.length) return;
+  if (e.key === "ArrowRight") { e.preventDefault(); nextStep(); }
+  if (e.key === "ArrowLeft")  { e.preventDefault(); prevStep(); }
+});
+
+buildLegend();
+shuffle();   // making a random page to be sure its not empty
+</script>
+</body>
+</html>
