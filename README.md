@@ -1,4 +1,4 @@
-# Skip List — Express Lane Visualizer
+# Skip List - Express Lane Visualizer
 
 A custom implementation of the **Skip List** data structure in JavaScript,
 together with an interactive web-based visualizer that animates how elements are
@@ -8,7 +8,7 @@ the structure down and to the right. I wanted to make the visualization more int
 Built as the final project for the Algorithm Analysis course, based on:
 
 > Pugh, W. (1990). *Skip Lists: A Probabilistic Alternative to Balanced Trees.*
-> Communications of the ACM, 33(6), 668–676.
+> Communications of the ACM, 33(6), 668-676.
 
 ---
 
@@ -25,7 +25,7 @@ If you are reading the source on github.com, see *How to run* below.)
 
 A skip list is a sorted linked list with **shortcut lanes** stacked on top of it.
 The bottom lane (Level 1) contains every element. Higher lanes contain roughly
-half as many elements each — and which elements appear on which lane is decided
+half as many elements each, and which elements appear on which lane is decided
 by **coin flips at insertion time**, not by a balancing rule. The lucky tall
 towers act as express stops, letting a search skip over big chunks of the list
 instead of walking one node at a time. The result: expected `O(log n)` search,
@@ -37,11 +37,11 @@ insert, and delete, with code far simpler than balanced trees.
 
 The whole project is two HTMLs.
 
-**Option A — locally:**
+**Option A, locally:**
 Download the repository and double-click `skiplist-visualizer.html`. It opens
 in your browser and runs.
 
-**Option B — hosted (GitHub Pages):**
+**Option B, hosted (GitHub Pages):**
 This repository is configured to serve the visualizer directly. Open the
 *Live demo* link above.
 
@@ -100,7 +100,7 @@ header ─────────────────►──────�
 
 Same down-and-right search, but each level remembers the last node visited in
 an array called `update`. Then a random height is rolled by `randomLevel()` and
-the new node is spliced in — for each level it reaches, the pointer of the
+the new node is spliced in, for each level it reaches, the pointer of the
 remembered predecessor is rewired to point at the new node, and the new node's
 pointer takes over where the predecessor's used to point. Standard linked-list
 splice, repeated per level.
@@ -122,7 +122,7 @@ return level
 ```
 
 With `p = 1/2`, about 50% of nodes stay at level 1, 25% reach level 2, 12.5%
-reach level 3, and so on. No balancing logic anywhere — the distribution
+reach level 3, and so on. No balancing logic anywhere, the distribution
 emerges from the coin alone.
 
 ---
@@ -152,7 +152,7 @@ actual count of the most recent search.
 
 ### Worst case
 
-The worst case is `O(n)` — but it requires an unlikely sequence of coin flips,
+The worst case is `O(n)`; but it requires an unlikely sequence of coin flips,
 not an unlucky input. Because the structure is decided by the random number
 generator and not by the order of insertions, no adversarial input can force
 worst-case behaviour the way it can with a naive BST. Pugh shows that for a
@@ -173,7 +173,7 @@ at a glance.
 
 Each node carries `1/(1 − p)` forward pointers on average. For `p = 1/2` that
 is 2 pointers per node; for `p = 1/4` it drops to 1.33. Total space is
-`O(n)` either way, and no balance information is stored per node — a real
+`O(n)` either way, and no balance information is stored per node, a real
 practical advantage over balanced trees.
 
 ### Summary table
@@ -303,7 +303,7 @@ with Figures 2 and 4 of the paper without any index translation.
 ## References
 
 - Pugh, W. (1990). *Skip Lists: A Probabilistic Alternative to Balanced
-  Trees.* Communications of the ACM, 33(6), 668–676.
+  Trees.* Communications of the ACM, 33(6), 668-676.
 - Papadakis, T., Munro, J. I., & Poblete, P. V. (1992). *Analysis of the
   expected search cost in skip lists.* Cited in Pugh (1990) as a tighter
   bound on the expected search cost.
